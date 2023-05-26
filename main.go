@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"github.com/chifflier/nfqueue-go/nfqueue"
+	"log"
 	"os"
 	"os/signal"
 	"syscall"
@@ -38,14 +39,27 @@ func realCallback(payload *nfqueue.Payload) int {
 func main() {
 	q := new(nfqueue.Queue)
 
-	q.SetCallback(realCallback)
+	_ = q.SetCallback(realCallback)
 
-	q.Init()
+	err := q.Init()
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	q.Unbind(syscall.AF_INET)
-	q.Bind(syscall.AF_INET)
+	err = q.Unbind(syscall.AF_INET)
+	if err != nil {
+		log.Fatal(err)
+	}
+	_ = q.Bind(syscall.AF_INET)
 
-	q.CreateQueue(0)
+	err = q.CreateQueue(0)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer func() {
+		_ = q.DestroyQueue()
+		q.Close()
+	}()
 
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
@@ -57,10 +71,8 @@ func main() {
 		}
 	}()
 
-	// XXX Drop privileges here
-
-	q.Loop()
-	q.DestroyQueue()
-	q.Close()
-	os.Exit(0)
+	err = q.Loop()
+	if err != nil {
+		log.Fatal(err)
+	}
 }
