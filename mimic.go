@@ -34,8 +34,8 @@ func (m MimicP0f) NFQCallback(payload *nfqueue.Payload) int {
 	// Process IP layer.
 	ip := packet.Layer(layers.LayerTypeIPv4).(*layers.IPv4)
 	if ip.TTL != m.Sig.ITTL {
-		ip.TTL = m.Sig.ITTL
 		log.Printf("Change TTL from %d to %d.\n", ip.TTL, m.Sig.ITTL)
+		ip.TTL = m.Sig.ITTL
 	}
 	if len(ip.Options) != m.Sig.OLen {
 		log.Printf("WARN: IP opts len mismatch: expect %d, got %d. Opts: %v\n", len(ip.Options), m.Sig.OLen, ip.Options)
@@ -85,8 +85,24 @@ func (m MimicP0f) NFQCallback(payload *nfqueue.Payload) int {
 	}
 
 	// Recalculate checksums.
+	buffer := gopacket.NewSerializeBuffer()
+	options := gopacket.SerializeOptions{
+		ComputeChecksums: true,
+		FixLengths:       true,
+	}
+	if err := tcp.SetNetworkLayerForChecksum(ip); err != nil {
+		log.Printf("Error setting network layer ip: %s", err)
+		return m.defaultBehavior(payload)
+	}
+
+	// Serialize Packet to get raw bytes
+	if err := gopacket.SerializePacket(buffer, options, packet); err != nil {
+		log.Printf("Can't serialize packet: %s", err)
+		return m.defaultBehavior(payload)
+	}
 
 	// Send modified packet.
+	_ = payload.SetVerdictModified(nfqueue.NF_ACCEPT, buffer.Bytes())
 
 	return 0
 }
