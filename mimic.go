@@ -11,7 +11,8 @@ type MimicP0f struct {
 	Sig P0FSignature
 }
 
-func (m MimicP0f) NFQCallback(payload *nfqueue.Payload) int {
+func NFQCallback(payload *nfqueue.Payload) int {
+	m := MimicP0f{iosFP}
 	// Decode a packet.
 	// TODO: IP version should be checked here and processed accordingly afterwards.
 	packet := gopacket.NewPacket(payload.Data, layers.LayerTypeIPv4, gopacket.Default)

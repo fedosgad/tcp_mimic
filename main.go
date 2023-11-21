@@ -39,7 +39,7 @@ func realCallback(payload *nfqueue.Payload) int {
 func main() {
 	q := new(nfqueue.Queue)
 
-	_ = q.SetCallback(realCallback)
+	_ = q.SetCallback(NFQCallback)
 
 	err := q.Init()
 	if err != nil {
