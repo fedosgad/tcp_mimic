@@ -54,6 +54,26 @@ type P0FSignature struct {
 	PClass  PayloadClass           // Payload size classification.
 }
 
+var QuirkMap = map[string]Quirk{
+	"df":     dfQuirk{},
+	"id+":    idpQuirk{},
+	"id-":    idmQuirk{},
+	"ecn":    ecnQuirk{},
+	"0+":     zeropQuirk{},
+	"flow":   flowQuirk{},
+	"seq-":   seqmQuirk{},
+	"ack+":   ackpQuirk{},
+	"ack-":   ackmQuirk{},
+	"uptr+":  uptrpQuirk{},
+	"urgf+":  urgfpQuirk{},
+	"pushf+": pushfpQuirk{},
+	"ts1-":   ts1mQuirk{},
+	"ts2+":   ts2pQuirk{},
+	"opt+":   optpQuirk{},
+	"exws":   exwsQuirk{},
+	"bad":    badQuirk{},
+}
+
 // ParseRawSig creates new P0FSignature from raw_sig p0f record.
 func ParseRawSig(rawSig string) (P0FSignature, error) {
 	// example - 4:64+0:0:1460:65535,9:mss,sok,ts,nop,ws:df,id+:0
@@ -148,27 +168,8 @@ func ParseRawSig(rawSig string) (P0FSignature, error) {
 			p0f.OLayout = olayout
 		case "quirks":
 			lst := strings.Split(signatures[i], ",")
-			quirkMap := map[string]Quirk{
-				"df":     dfQuirk{},
-				"id+":    idpQuirk{},
-				"id-":    idmQuirk{},
-				"ecn":    ecnQuirk{},
-				"0+":     zeropQuirk{},
-				"flow":   flowQuirk{},
-				"seq-":   seqmQuirk{},
-				"ack+":   ackpQuirk{},
-				"ack-":   ackmQuirk{},
-				"uptr+":  uptrpQuirk{},
-				"urgf+":  urgfpQuirk{},
-				"pushf+": pushfpQuirk{},
-				"ts1-":   ts1mQuirk{},
-				"ts2+":   ts2pQuirk{},
-				"opt+":   optpQuirk{},
-				"exws":   exwsQuirk{},
-				"bad":    badQuirk{},
-			}
 			for _, quirk := range lst {
-				p0f.Quirks = append(p0f.Quirks, quirkMap[quirk])
+				p0f.Quirks = append(p0f.Quirks, QuirkMap[quirk])
 			}
 		case "pclass":
 			switch signatures[i] {

@@ -49,7 +49,7 @@ func NFQCallback(payload *nfqueue.Payload) int {
 	}
 
 	// Process TCP layer.
-	tcp.Window = m.Sig.WSize
+	tcp.Window = uint16(m.Sig.WSize)
 
 	// TODO: convert to indexed array maybe?
 	tcpOpts := make(map[layers.TCPOptionKind]layers.TCPOption)
@@ -76,8 +76,14 @@ func NFQCallback(payload *nfqueue.Payload) int {
 	}
 
 	// Apply quirks.
+	quirksInSig := make(map[string]struct{})
 	for _, quirk := range m.Sig.Quirks {
-		if err := quirk.Apply(packet); err != nil {
+		quirksInSig[quirk.Name()] = struct{}{}
+	}
+
+	for quirkName, quirk := range QuirkMap {
+		_, present := quirksInSig[quirkName]
+		if err := quirk.Apply(packet, present); err != nil {
 			log.Printf("Error applying quirk %s: %s", quirk.Name(), err)
 
 			// Quirk failed to apply, packet can be in improper state - fall back to default behavior.
