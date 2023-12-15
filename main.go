@@ -1,11 +1,12 @@
 package main
 
 import (
-	"github.com/chifflier/nfqueue-go/nfqueue"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/chifflier/nfqueue-go/nfqueue"
 )
 
 func main() {

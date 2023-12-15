@@ -1,9 +1,10 @@
 package main
 
 import (
+	"math/rand"
+
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
-	"math/rand"
 )
 
 // Quirk performs additional operations on a packet layer.
@@ -292,7 +293,6 @@ func (q ts1mQuirk) Apply(packet gopacket.Packet, isIn bool) error {
 	}
 	for _, option := range tcp.Options {
 		if option.OptionType == layers.TCPOptionKindTimestamps {
-			// length of data == 8, https://media.geeksforgeeks.org/wp-content/uploads/20220223161723/timestampskind8.png
 			option.OptionData = []byte{0, 0, 0, 0, 0, 0, 0, 0} //TODO: check it out
 		}
 	}
@@ -317,7 +317,6 @@ func (q ts2pQuirk) Apply(packet gopacket.Packet, isIn bool) error {
 	}
 	for _, option := range tcp.Options {
 		if option.OptionType == layers.TCPOptionKindTimestamps {
-			// length of data == 8, https://media.geeksforgeeks.org/wp-content/uploads/20220223161723/timestampskind8.png
 			option.OptionData = []byte{0, 0, 0, 0, 0, 0, 0, 0} //TODO: check it out
 		}
 	}
@@ -352,6 +351,7 @@ func (q exwsQuirk) Apply(packet gopacket.Packet, isIn bool) error {
 	if !isIn {
 		return nil
 	}
+	//TODO:
 	_ = tcp.Options
 	return nil
 }
@@ -372,6 +372,7 @@ func (q badQuirk) Apply(packet gopacket.Packet, isIn bool) error {
 	if !isIn {
 		return nil
 	}
+	// TODO:
 	_ = tcp.Options
 	return nil
 }

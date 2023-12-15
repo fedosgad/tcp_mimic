@@ -2,10 +2,11 @@ package main
 
 import (
 	"fmt"
-	"github.com/google/gopacket"
-	"github.com/google/gopacket/layers"
 	"strconv"
 	"strings"
+
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
 )
 
 type IPVersion int
@@ -51,7 +52,7 @@ type P0FSignature struct {
 	Scale   int                    // Window scaling factor, if specified in TCP options. '*' == -1
 	OLayout []layers.TCPOptionKind // Layout and ordering of TCP options, if any.
 	Quirks  []Quirk                // Properties and quirks observed in IP or TCP headers.
-	PClass  PayloadClass           // Payload size classification.
+	PClass  PayloadClass           // Payload size classification. '*' == -1. '+' == 1
 }
 
 var QuirkMap = map[string]Quirk{
@@ -160,7 +161,18 @@ func ParseRawSig(rawSig string) (P0FSignature, error) {
 					if err != nil {
 						return P0FSignature{}, fmt.Errorf("unknown scale: %s", err)
 					}
-					olayout = append(olayout, layers.TCPOptionKind(pad*255))
+					for i := 0; i < pad; i++ {
+						olayout = append(olayout, TCPOptionPaddingByte)
+					}
+					continue
+				}
+				if strings.HasPrefix(layout, "?") {
+					kindStr := strings.TrimPrefix(layout, "?")
+					kind, err := strconv.Atoi(kindStr)
+					if err != nil {
+						return P0FSignature{}, fmt.Errorf("unknown scale: %s", err)
+					}
+					olayout = append(olayout, layers.TCPOptionKind(kind))
 					continue
 				}
 				olayout = append(olayout, layouts[layout])

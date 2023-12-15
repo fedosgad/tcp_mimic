@@ -1,10 +1,14 @@
 package main
 
 import (
+	cryptorand "crypto/rand"
+	"encoding/binary"
+	"log"
+	"math/rand"
+
 	"github.com/chifflier/nfqueue-go/nfqueue"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
-	"log"
 )
 
 type MimicP0f struct {
@@ -41,7 +45,6 @@ func NFQCallback(payload *nfqueue.Payload) int {
 	if len(ip.Options) != m.Sig.OLen {
 		log.Printf("WARN: IP opts len mismatch: expect %d, got %d. Opts: %v\n", len(ip.Options), m.Sig.OLen, ip.Options)
 		// Special case: 0 options expected, got options - omit them entirely.
-		// TODO: is it safe to omit options without additional actions?
 		if m.Sig.OLen == 0 {
 			ip.Options = nil
 			log.Printf("Omit IP opts.\n")
@@ -49,11 +52,34 @@ func NFQCallback(payload *nfqueue.Payload) int {
 	}
 
 	// Process TCP layer.
+
+	if m.Sig.MSS == -1 {
+		// TODO: what do with * (-1) value
+		m.Sig.MSS = 1460
+	}
+
+	switch m.Sig.WSize {
+	case -1:
+		// * TODO:
+		m.Sig.WSize = 65535
+	case -2:
+		// mss*4
+		m.Sig.WSize = m.Sig.MSS * 4
+	case -3:
+		// mtu*4 TODO:
+		m.Sig.WSize = 65535
+	case -4:
+		// %8192 TODO:
+		m.Sig.WSize = 8192
+	}
 	tcp.Window = uint16(m.Sig.WSize)
+
+	if m.Sig.Scale == -1 {
+		m.Sig.Scale = 0
+	}
 
 	// TODO: convert to indexed array maybe?
 	tcpOpts := make(map[layers.TCPOptionKind]layers.TCPOption)
-	paddingLen := 0
 	for _, opt := range tcp.Options {
 		tcpOpts[opt.OptionType] = opt
 	}
@@ -62,14 +88,66 @@ func NFQCallback(payload *nfqueue.Payload) int {
 		var opt layers.TCPOption
 		switch kind {
 		case TCPOptionPaddingByte:
-			paddingLen++
+			opt = layers.TCPOption{
+				OptionType:   layers.TCPOptionKindEndList,
+				OptionLength: 1,
+				OptionData:   nil,
+			}
+		case layers.TCPOptionKindNop:
+			opt = layers.TCPOption{
+				OptionType:   layers.TCPOptionKindNop,
+				OptionLength: 1,
+				OptionData:   nil,
+			}
+		case layers.TCPOptionKindMSS:
+			bs := make([]byte, 2)
+			binary.LittleEndian.PutUint16(bs, uint16(m.Sig.MSS))
+			bs[0], bs[1] = bs[1], bs[0]
+			opt = layers.TCPOption{
+				OptionType:   layers.TCPOptionKindMSS,
+				OptionLength: 4,
+				OptionData:   bs,
+			}
+		case layers.TCPOptionKindWindowScale:
+			opt = layers.TCPOption{
+				OptionType:   layers.TCPOptionKindWindowScale,
+				OptionLength: 3,
+				OptionData:   []byte{byte(m.Sig.Scale)},
+			}
+		case layers.TCPOptionKindSACKPermitted:
+			opt = layers.TCPOption{
+				OptionType:   layers.TCPOptionKindSACKPermitted,
+				OptionLength: 2,
+				OptionData:   nil,
+			}
+		case layers.TCPOptionKindSACK:
+			var ok bool
+			opt, ok = tcpOpts[kind]
+			if !ok {
+				// TODO: check data
+				opt = layers.TCPOption{
+					OptionType:   layers.TCPOptionKindSACK,
+					OptionLength: 2,
+					OptionData:   nil,
+				}
+			}
+		case layers.TCPOptionKindTimestamps:
+			var ok bool
+			opt, ok = tcpOpts[kind]
+			if !ok {
+				// TODO: check data
+				opt = layers.TCPOption{
+					OptionType:   layers.TCPOptionKindTimestamps,
+					OptionLength: 10,
+					OptionData:   []byte{0, 0, 0, 0, 0, 0, 0, 0},
+				}
+			}
 		default:
 			ok := false
 			opt, ok = tcpOpts[kind]
 			if !ok {
 				// Got no matching TCP option.
-				log.Printf("No matching TCP option: sig wants %s", opt.String())
-				// TODO: what can be done?
+				log.Fatalf("No matching TCP option: sig wants %s", opt.String())
 			}
 		}
 		tcp.Options = append(tcp.Options, opt)
@@ -91,6 +169,25 @@ func NFQCallback(payload *nfqueue.Payload) int {
 		}
 	}
 
+	switch m.Sig.PClass {
+	// *
+	case -1:
+		// do nothing
+		_ = nil
+	// 0
+	case 0:
+		tcp.Payload = nil
+	// +
+	case 1:
+		if len(tcp.Payload) == 0 {
+			buf := make([]byte, rand.Intn(9)+1)
+			_, err := cryptorand.Read(buf)
+			if err != nil {
+				log.Fatalf("error while generating random string: %s", err)
+			}
+			tcp.Payload = buf
+		}
+	}
 	// Recalculate checksums.
 	buffer := gopacket.NewSerializeBuffer()
 	options := gopacket.SerializeOptions{
